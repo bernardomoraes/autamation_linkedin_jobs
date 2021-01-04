@@ -4,7 +4,7 @@ const keys = require('./keys.json');
 
 (async () => {
     try {
-        const browser = await puppeteer.launch({headless: false, executablePath: '/usr/bin/chromium-browser'});
+        const browser = await puppeteer.launch({headless: false, defaultViewport: null, executablePath: '/usr/bin/chromium-browser'});
         const page = await browser.newPage();
         await page.goto('https://www.linkedin.com/feed/');
         await page.click('a.main__sign-in-link');
@@ -33,7 +33,7 @@ const keys = require('./keys.json');
             let dataSheets = await getDataFromSheets(client);
             console.log('DataArray: ', dataSheets)
             // EXECUTAR O SCRIPT COM OS DADOS COLETADOS
-            let finalUrls = await script(page, dataSheets)
+            let finalUrls = await script(page, dataSheets, browser)
             await updateDataToSheets(client, finalUrls)
         }
         
@@ -118,23 +118,28 @@ async function updateDataToSheets(client, data) {
     console.log(response.status)
 }
 
-async function script(page, data) {
+async function script(page, data, browser) {
     let finalUrls = []
-    // DATA => ARRAY DE ARRAYS => [ROW[COLLUM]]
+    // DATA => ARRAY DE ARRAYS => [ROW[COLUM]]
     for (row of data) {
         if (row[0]){
+            console.log(row[0])
             await page.goto(row[0])
             let anunciarVagaNovamenteButton = "button[data-control-name = 'hiring_job_repost']";
-            await page.waitForSelector(anunciarVagaNovamenteButton);
-            await page.click(anunciarVagaNovamenteButton);
-            await page.waitForTimeout(2000);
+            await page.waitForSelector(anunciarVagaNovamenteButton,{timeout: 60000});
+            await page.waitForTimeout(3000);
+            await page.evaluate(() => {
+                document.querySelector("button[data-control-name = 'hiring_job_repost']").click()
+            })
+            // await page.click(anunciarVagaNovamenteButton);
+
+            await page.waitForTimeout(3000);
         
             let newPages = await browser.pages();
             
             let talentSolutionsPage = await newPages[2];
             await talentSolutionsPage.waitForSelector('button.wow-page-online__submit-button');
             await talentSolutionsPage.click('button.wow-page-online__submit-button')
-            await talentSolutionsPage.screenshot({path: 'TSP.png'});
             
             let competenciasListSelector = ".job-skill-typeahead ul li[data-test-job-skill-pill-dismiss]";
         
@@ -175,7 +180,7 @@ async function script(page, data) {
         
         
             // REGISTRAR O VALOR NO EXCEL
-                finalUrls.push(enderecoElementValue)
+                finalUrls.push([enderecoElementValue])
                 // Printar valor do Endereço
                 console.log(enderecoElementValue)
         
@@ -194,6 +199,9 @@ async function script(page, data) {
             }
 
             await talentSolutionsPage.close()
+
+            
         }
     }
+    return finalUrls
 }
